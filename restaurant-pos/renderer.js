@@ -44,16 +44,23 @@ function renderCategories() {
 }
 
 /* ---------- render menu (filtered by category & search) ---------- */
+/* ---------- render menu (filtered by category & search) ---------- */
 function renderMenu() {
   const grid = $('menu-grid');
   grid.innerHTML = '';
 
   const q = $('search').value.trim().toLowerCase();
-  const filtered = menuItems.filter(it => {
-    const inCat = selectedCategory ? (it.category === selectedCategory) : true;
-    const match = q ? it.name.toLowerCase().includes(q) : true;
-    return inCat && match;
-  });
+
+  let filtered;
+  if (q) {
+    // When searching → search across ALL categories
+    filtered = menuItems.filter(it => it.name.toLowerCase().includes(q));
+  } else {
+    // No search → filter only by selected category
+    filtered = menuItems.filter(it => {
+      return selectedCategory ? (it.category === selectedCategory) : true;
+    });
+  }
 
   if (filtered.length === 0) {
     grid.innerHTML = '<div style="opacity:.6">No items</div>';
@@ -69,6 +76,7 @@ function renderMenu() {
     grid.appendChild(btn);
   });
 }
+
 
 /* ---------- add to bill ---------- */
 function addToBill(item) {
