@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Restaurant POS</title>
+  <style>
+    html,body { height:100%; margin:0; font-family: Arial, sans-serif; }
+    .app { display:flex; height:100vh; }
+    /* LEFT - order summary */
+    #left { flex: 0.42; border-right:1px solid #ddd; padding:12px; box-sizing:border-box; display:flex; flex-direction:column; }
+    #orders { flex:1; overflow:auto; }
+    table { width:100%; border-collapse:collapse; }
+    table th, table td { padding:6px; border-bottom:1px solid #eee; text-align:left; }
+    .total { font-size:20px; margin-top:10px; }
+    .action-row { margin-top:10px; display:flex; gap:10px; }
+
+    /* RIGHT - categories/search/menu */
+    #right { flex: 0.58; padding:12px; box-sizing:border-box; display:flex; flex-direction:column; }
+    #category-bar { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+    .cat-btn { padding:8px 12px; border-radius:6px; background:#eee; cursor:pointer; }
+    .cat-btn.active { background:#d9534f; color:#fff; }
+    #search { margin-bottom:8px; padding:8px; width:100%; box-sizing:border-box; }
+    #menu-grid { display:flex; gap:8px; flex-wrap:wrap; align-content:flex-start; overflow:auto; padding:6px; }
+
+    /* menu button size (adjustable) */
+    .menu-btn {
+      width: 90px;     /* change to 50px if you want very small */
+      height: 70px;    /* change to 50px to match 50x50 */
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:6px;
+      border-radius:6px;
+      background:#f44;
+      color:#fff;
+      cursor:pointer;
+      font-size:13px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    }
+
+    /* Admin panel simple */
+    #admin-panel { border-top:1px solid #ddd; padding-top:8px; margin-top:8px; }
+    .small { font-size:12px; padding:6px 8px; }
+    .qty-btn { cursor:pointer; padding:4px 8px; border:1px solid #ccc; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="left">
+      <h2>Order Summary</h2>
+      <div id="orders">
+        <table id="bill-table">
+          <thead>
+            <tr><th>Item</th><th>Qty</th><th>Price</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="total" id="bill-total">Total: PKR 0</div>
+
+      <div class="action-row">
+        <button id="complete-order" class="small">Complete Order (Save)</button>
+        <button id="clear-bill" class="small">Clear</button>
+        <button id="end-day" class="small">End Day (Archive)</button>
+        <button id="open-admin" class="small">Admin</button>
+      </div>
+
+      <div id="admin-panel" style="display:none;">
+        <h3>Admin — Add Menu Item</h3>
+        <div>
+          <input id="new-name" placeholder="Name" />
+          <input id="new-price" placeholder="Price" type="number" />
+          <input id="new-category" placeholder="Category" />
+          <button id="add-item" class="small">Add Item</button>
+        </div>
+        <h4>Current Items</h4>
+        <div id="admin-items" style="max-height:150px; overflow:auto;"></div>
+      </div>
+    </div>
+
+    <div id="right">
+      <div id="category-bar"></div>
+      <input id="search" placeholder="Search menu items..." />
+      <div id="menu-grid"></div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
