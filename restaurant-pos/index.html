@@ -165,6 +165,27 @@
   padding: 6px 12px;
 }
 
+#right {
+  flex: 0.58;
+  padding: 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;  /* ✅ allow flex child to shrink instead of pushing left */
+}
+
+#category-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: nowrap;       /* ✅ keep in one row */
+  overflow-x: auto;        /* ✅ enable scroll */
+  white-space: nowrap;
+}
+
+.cat-btn {
+  flex-shrink: 0;          /* ✅ don’t let buttons shrink */
+}
 
   </style>
 
