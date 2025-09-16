@@ -3,11 +3,50 @@ let menuItems = [];
 let selectedCategory = null;
 
 // MULTI-BILL state
-let bills = {};              // { '001': { itemId: { item, qty } }, ... }
-let activeBillId = '001';    // currently selected bill id (string '001', '002', ...)
-let billCounter = 1;         // increments to create new bill ids
+let bills = {};               // { '001': { itemId: { item, qty } }, ... }
+let activeBillId = '001';     // currently selected bill id (string '001', '002', ...)
+let billCounter = 1;          // increments to create new bill ids
 
 const $ = id => document.getElementById(id);
+
+// ---------- Toast System ----------
+function showToast(msg, duration = 2500) {
+  const div = document.createElement('div');
+  div.className = 'toast';
+  div.textContent = msg;
+  document.body.appendChild(div);
+  setTimeout(() => {
+    div.classList.add('fade-out');
+    setTimeout(() => div.remove(), 300);
+  }, duration);
+}
+
+// ---------- Confirm Modal ----------
+function showConfirm(msg) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal">
+        <div class="modal-msg">${msg}</div>
+        <div class="modal-actions">
+          <button id="confirm-yes">Yes</button>
+          <button id="confirm-no">No</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#confirm-yes').onclick = () => {
+      overlay.remove();
+      resolve(true);
+    };
+    overlay.querySelector('#confirm-no').onclick = () => {
+      overlay.remove();
+      resolve(false);
+    };
+  });
+}
 
 // load menu from disk
 async function init() {
@@ -53,7 +92,6 @@ function renderCategories() {
     };
     bar.appendChild(b);
   });
-  // allow category creation visually by admin (admin adds category via new-category field)
 }
 
 /* ---------- render menu (filtered by category & search) ---------- */
@@ -110,20 +148,19 @@ function renderBillTabs() {
   // sort keys so '001','002' order is preserved
   const keys = Object.keys(bills).sort();
 
-keys.forEach(id => {
-  const btn = document.createElement('button');
-  btn.id = "btn-" + id;   // ✅ give each bill tab a unique id
-  btn.className = 'bill-tab' + (id === activeBillId ? ' active' : '');
-  btn.textContent = `Bill ${id}`;
-  btn.dataset.id = id;
-  btn.onclick = () => {
-    activeBillId = id;
-    renderBillTabs();
-    renderBill();
-  };
-  container.appendChild(btn);
-});
-
+  keys.forEach(id => {
+    const btn = document.createElement('button');
+    btn.id = "btn-" + id;
+    btn.className = 'bill-tab' + (id === activeBillId ? ' active' : '');
+    btn.textContent = `Bill ${id}`;
+    btn.dataset.id = id;
+    btn.onclick = () => {
+      activeBillId = id;
+      renderBillTabs();
+      renderBill();
+    };
+    container.appendChild(btn);
+  });
 
   const addBtn = document.createElement('button');
   addBtn.className = 'bill-tab add-bill';
@@ -152,7 +189,6 @@ function renderBill() {
 
   const theBill = bills[activeBillId] || {};
 
-  // if there are no items, show friendly message
   if (Object.keys(theBill).length === 0) {
     tbody.innerHTML = '<tr><td colspan="3" style="opacity:.6">No items in this bill</td></tr>';
   } else {
@@ -183,7 +219,6 @@ function renderBill() {
 
   $('bill-total').textContent = `Total: PKR ${total}`;
 
-  // attach qty buttons handlers
   document.querySelectorAll('.qty-btn').forEach(b => {
     b.onclick = () => {
       const id = b.dataset.id;
@@ -192,20 +227,19 @@ function renderBill() {
       if (op === '+') bills[activeBillId][id].qty++;
       else if (op === '-') {
         bills[activeBillId][id].qty--;
-        if (bills[activeBillId][id].qty <= 0) delete bills[activeBillId][id]; // auto-remove when qty <= 0
+        if (bills[activeBillId][id].qty <= 0) delete bills[activeBillId][id];
       }
       renderBill();
     };
   });
 }
 
-/* ---------- complete order (save only the active bill to sales.json) ---------- */
-/* ---------- complete order (save + remove bill tab + create new) ---------- */
+/* ---------- complete order ---------- */
 async function completeOrder() {
   const theBill = bills[activeBillId] || {};
   const items = Object.values(theBill).map(e => ({ name: e.item.name, qty: e.qty, price: e.item.price }));
   if (items.length === 0) {
-    alert('No items in the current bill.');
+    showToast('No items in the current bill.');
     return;
   }
 
@@ -218,37 +252,28 @@ async function completeOrder() {
     timestamp: new Date().toISOString()
   };
 
-  // Save this bill’s sale record
   await window.api.appendSale(sale);
 
-  // 🔹 Remove this bill completely (not just clear)
   delete bills[activeBillId];
-
-  // 🔹 Find the next available bill
   const remaining = Object.keys(bills).sort();
-
   if (remaining.length > 0) {
-    // Switch to the first remaining bill
     activeBillId = remaining[0];
   } else {
-    // No bills left → create a new one
     createNewBill();
   }
 
-  // Re-render tabs + current bill
   renderBillTabs();
   renderBill();
 
-  alert('Order saved.');
+  showToast('Order saved.');
 }
 
-
-/* ---------- end of day (archive today's sales) ---------- */
+/* ---------- end of day ---------- */
 async function endDay() {
   const date = new Date();
-  const dateString = date.toISOString().slice(0,10); // YYYY-MM-DD
+  const dateString = date.toISOString().slice(0,10);
   const r = await window.api.archiveSales(dateString);
-  alert(`Sales archived to:\n${r.archived}`);
+  showToast(`Sales archived to: ${r.archived}`);
 }
 
 /* ---------- Admin: add new menu item ---------- */
@@ -256,14 +281,13 @@ async function addMenuItem() {
   const name = $('new-name').value.trim();
   const price = parseInt($('new-price').value, 10);
   const category = $('new-category').value.trim() || 'Uncategorized';
-  if (!name || !price) { alert('Enter name and price'); return; }
+  if (!name || !price) { showToast('Enter name and price'); return; }
 
   const newId = (menuItems.length ? Math.max(...menuItems.map(i=>i.id)) : 0) + 1;
   const newItem = { id: newId, name, price, category };
   menuItems.push(newItem);
   await window.api.saveMenu(menuItems);
 
-  // clear admin inputs & re-render
   $('new-name').value = '';
   $('new-price').value = '';
   $('new-category').value = '';
@@ -286,7 +310,7 @@ function renderAdminList() {
   cont.querySelectorAll('button[data-id]').forEach(bt => {
     bt.onclick = async () => {
       const id = parseInt(bt.dataset.id, 10);
-      if (!confirm('Delete this item?')) return;
+      if (!(await showConfirm('Delete this item?'))) return;
       menuItems = menuItems.filter(m => m.id !== id);
       await window.api.saveMenu(menuItems);
       renderCategories();
@@ -309,14 +333,14 @@ $('open-admin').addEventListener('click', () => {
 /* ---------- other buttons ---------- */
 $('add-item').addEventListener('click', addMenuItem);
 $('complete-order').addEventListener('click', completeOrder);
-$('clear-bill').addEventListener('click', () => {
-  if (confirm('Clear current bill?')) {
+$('clear-bill').addEventListener('click', async () => {
+  if (await showConfirm('Clear current bill?')) {
     bills[activeBillId] = {};
     renderBill();
   }
 });
-$('end-day').addEventListener('click', () => {
-  if (confirm('Archive today sales and clear them?')) endDay();
+$('end-day').addEventListener('click', async () => {
+  if (await showConfirm('Archive today sales and clear them?')) endDay();
 });
 
 init();
