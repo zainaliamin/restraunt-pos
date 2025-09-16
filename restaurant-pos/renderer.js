@@ -104,7 +104,6 @@ function renderBill() {
       <button class="qty-btn" data-id="${id}" data-op="-">-</button>
       <span style="margin:0 8px">${entry.qty}</span>
       <button class="qty-btn" data-id="${id}" data-op="+">+</button>
-      <button class="qty-btn" data-id="${id}" data-op="x" style="margin-left:8px;">Remove</button>
     `;
     tr.appendChild(tdQty);
 
@@ -127,13 +126,14 @@ function renderBill() {
       if (!bill[id]) return;
       if (op === '+') bill[id].qty++;
       else if (op === '-') {
-        bill[id].qty = Math.max(0, bill[id].qty - 1);
-        if (bill[id].qty === 0) delete bill[id];
-      } else if (op === 'x') delete bill[id];
+        bill[id].qty--;
+        if (bill[id].qty <= 0) delete bill[id]; // remove item when qty reaches 0
+      }
       renderBill();
     };
   });
 }
+
 
 /* ---------- complete order (save to sales.json) ---------- */
 async function completeOrder() {
