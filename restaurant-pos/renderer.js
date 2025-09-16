@@ -1,7 +1,11 @@
 // renderer.js - runs in the UI
 let menuItems = [];
 let selectedCategory = null;
-let bill = {}; // { itemId: { item, qty } }
+
+// MULTI-BILL state
+let bills = {};              // { '001': { itemId: { item, qty } }, ... }
+let activeBillId = '001';    // currently selected bill id (string '001', '002', ...)
+let billCounter = 1;         // increments to create new bill ids
 
 const $ = id => document.getElementById(id);
 
@@ -10,9 +14,18 @@ async function init() {
   menuItems = await window.api.loadMenu();
   if (!menuItems || !menuItems.length) menuItems = [];
   renderCategories();
+
   // default to first category
   const cats = getCategories();
   selectedCategory = cats[0] || null;
+
+  // initialize multi-bill system (start with Bill 001)
+  bills = {};
+  billCounter = 1;
+  activeBillId = String(billCounter).padStart(3, '0'); // '001'
+  bills[activeBillId] = {}; // empty bill
+
+  renderBillTabs(); // render top bill tabs (adds the + button)
   renderMenu();
   renderBill();
 }
@@ -43,7 +56,6 @@ function renderCategories() {
   // allow category creation visually by admin (admin adds category via new-category field)
 }
 
-/* ---------- render menu (filtered by category & search) ---------- */
 /* ---------- render menu (filtered by category & search) ---------- */
 function renderMenu() {
   const grid = $('menu-grid');
@@ -77,43 +89,94 @@ function renderMenu() {
   });
 }
 
-
-/* ---------- add to bill ---------- */
+/* ---------- add to bill (adds to the active bill) ---------- */
 function addToBill(item) {
-  if (!bill[item.id]) {
-    bill[item.id] = { item, qty: 0 };
+  if (!bills[activeBillId]) bills[activeBillId] = {};
+  const theBill = bills[activeBillId];
+  if (!theBill[item.id]) {
+    theBill[item.id] = { item, qty: 0 };
   }
-  bill[item.id].qty++;
+  theBill[item.id].qty++;
   renderBill();
 }
 
-/* ---------- render bill (left side) ---------- */
+/* ---------- render bill tabs (top right + bill switcher) ---------- */
+function renderBillTabs() {
+  const container = $('bill-tabs');
+  if (!container) return; // guard if HTML not added
+
+  container.innerHTML = '';
+
+  // sort keys so '001','002' order is preserved
+  const keys = Object.keys(bills).sort();
+
+  keys.forEach(id => {
+    const btn = document.createElement('button');
+    btn.className = 'bill-tab' + (id === activeBillId ? ' active' : '');
+    btn.textContent = `Bill ${id}`;
+    btn.dataset.id = id;
+    btn.onclick = () => {
+      activeBillId = id;
+      renderBillTabs();
+      renderBill();
+    };
+    container.appendChild(btn);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'bill-tab add-bill';
+  addBtn.textContent = '+';
+  addBtn.title = 'New bill';
+  addBtn.onclick = createNewBill;
+  container.appendChild(addBtn);
+}
+
+/* ---------- create a new bill ---------- */
+function createNewBill() {
+  billCounter++;
+  const newId = String(billCounter).padStart(3, '0');
+  bills[newId] = {};
+  activeBillId = newId;
+  renderBillTabs();
+  renderBill();
+}
+
+/* ---------- render bill (left side) - uses activeBillId ---------- */
 function renderBill() {
   const tbody = document.querySelector('#bill-table tbody');
+  if (!tbody) return;
   tbody.innerHTML = '';
   let total = 0;
-  for (const [id, entry] of Object.entries(bill)) {
-    const tr = document.createElement('tr');
 
-    const tdName = document.createElement('td');
-    tdName.textContent = entry.item.name;
-    tr.appendChild(tdName);
+  const theBill = bills[activeBillId] || {};
 
-    const tdQty = document.createElement('td');
-    tdQty.innerHTML = `
-      <button class="qty-btn" data-id="${id}" data-op="-">-</button>
-      <span style="margin:0 8px">${entry.qty}</span>
-      <button class="qty-btn" data-id="${id}" data-op="+">+</button>
-    `;
-    tr.appendChild(tdQty);
+  // if there are no items, show friendly message
+  if (Object.keys(theBill).length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="opacity:.6">No items in this bill</td></tr>';
+  } else {
+    for (const [id, entry] of Object.entries(theBill)) {
+      const tr = document.createElement('tr');
 
-    const price = entry.qty * entry.item.price;
-    const tdPrice = document.createElement('td');
-    tdPrice.textContent = `PKR ${price}`;
-    tr.appendChild(tdPrice);
+      const tdName = document.createElement('td');
+      tdName.textContent = entry.item.name;
+      tr.appendChild(tdName);
 
-    tbody.appendChild(tr);
-    total += price;
+      const tdQty = document.createElement('td');
+      tdQty.innerHTML = `
+        <button class="qty-btn" data-id="${id}" data-op="-">-</button>
+        <span style="margin:0 8px">${entry.qty}</span>
+        <button class="qty-btn" data-id="${id}" data-op="+">+</button>
+      `;
+      tr.appendChild(tdQty);
+
+      const price = entry.qty * entry.item.price;
+      const tdPrice = document.createElement('td');
+      tdPrice.textContent = `PKR ${price}`;
+      tr.appendChild(tdPrice);
+
+      tbody.appendChild(tr);
+      total += price;
+    }
   }
 
   $('bill-total').textContent = `Total: PKR ${total}`;
@@ -123,36 +186,37 @@ function renderBill() {
     b.onclick = () => {
       const id = b.dataset.id;
       const op = b.dataset.op;
-      if (!bill[id]) return;
-      if (op === '+') bill[id].qty++;
+      if (!bills[activeBillId] || !bills[activeBillId][id]) return;
+      if (op === '+') bills[activeBillId][id].qty++;
       else if (op === '-') {
-        bill[id].qty--;
-        if (bill[id].qty <= 0) delete bill[id]; // remove item when qty reaches 0
+        bills[activeBillId][id].qty--;
+        if (bills[activeBillId][id].qty <= 0) delete bills[activeBillId][id]; // auto-remove when qty <= 0
       }
       renderBill();
     };
   });
 }
 
-
-/* ---------- complete order (save to sales.json) ---------- */
+/* ---------- complete order (save only the active bill to sales.json) ---------- */
 async function completeOrder() {
-  const items = Object.values(bill).map(e => ({ name: e.item.name, qty: e.qty, price: e.item.price }));
+  const theBill = bills[activeBillId] || {};
+  const items = Object.values(theBill).map(e => ({ name: e.item.name, qty: e.qty, price: e.item.price }));
   if (items.length === 0) {
-    alert('No items in order.');
+    alert('No items in the current bill.');
     return;
   }
-  const total = items.reduce((s,i)=> s + i.qty * i.price, 0);
+  const total = items.reduce((s, i) => s + i.qty * i.price, 0);
   const sale = {
     id: Date.now(),
+    billId: activeBillId,
     items,
     total,
     timestamp: new Date().toISOString()
   };
 
   await window.api.appendSale(sale);
-  // clear current bill
-  bill = {};
+  // clear only the active bill
+  bills[activeBillId] = {};
   renderBill();
   alert('Order saved.');
 }
@@ -223,7 +287,12 @@ $('open-admin').addEventListener('click', () => {
 /* ---------- other buttons ---------- */
 $('add-item').addEventListener('click', addMenuItem);
 $('complete-order').addEventListener('click', completeOrder);
-$('clear-bill').addEventListener('click', () => { bill = {}; renderBill(); });
+$('clear-bill').addEventListener('click', () => {
+  if (confirm('Clear current bill?')) {
+    bills[activeBillId] = {};
+    renderBill();
+  }
+});
 $('end-day').addEventListener('click', () => {
   if (confirm('Archive today sales and clear them?')) endDay();
 });

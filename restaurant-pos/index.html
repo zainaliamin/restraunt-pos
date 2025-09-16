@@ -49,7 +49,17 @@
   <div class="app">
     <div id="left">
       <h2>Order Summary</h2>
-      <div id="orders">
+      <div id="orders"><!-- put this just above your bill table -->
+<div id="bill-tabs" style="display:flex; gap:8px; align-items:center; padding:8px 0; overflow-x:auto;"></div>
+
+<!-- then your existing bill table -->
+<!-- <table id="bill-table">
+  <thead> ... </thead>
+  <tbody></tbody>
+</table> -->
+
+<!-- <div id="bill-total">Total: PKR 0</div> -->
+
         <table id="bill-table">
           <thead>
             <tr><th>Item</th><th>Qty</th><th>Price</th></tr>
@@ -86,6 +96,27 @@
       <div id="menu-grid"></div>
     </div>
   </div>
+
+  <style>
+    #bill-tabs { display:flex; gap:8px; align-items:center; padding:8px 0; overflow-x:auto; }
+.bill-tab {
+  padding:6px 10px;
+  border-radius:6px;
+  border:1px solid #ccc;
+  background:transparent;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.bill-tab.active {
+  background:#007bff;
+  color:white;
+  border-color:#007bff;
+}
+.bill-tab.add-bill {
+  font-weight:700;
+}
+
+  </style>
 
   <script src="renderer.js"></script>
 </body>
