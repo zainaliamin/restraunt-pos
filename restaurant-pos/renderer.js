@@ -110,18 +110,20 @@ function renderBillTabs() {
   // sort keys so '001','002' order is preserved
   const keys = Object.keys(bills).sort();
 
-  keys.forEach(id => {
-    const btn = document.createElement('button');
-    btn.className = 'bill-tab' + (id === activeBillId ? ' active' : '');
-    btn.textContent = `Bill ${id}`;
-    btn.dataset.id = id;
-    btn.onclick = () => {
-      activeBillId = id;
-      renderBillTabs();
-      renderBill();
-    };
-    container.appendChild(btn);
-  });
+keys.forEach(id => {
+  const btn = document.createElement('button');
+  btn.id = "btn-" + id;   // ✅ give each bill tab a unique id
+  btn.className = 'bill-tab' + (id === activeBillId ? ' active' : '');
+  btn.textContent = `Bill ${id}`;
+  btn.dataset.id = id;
+  btn.onclick = () => {
+    activeBillId = id;
+    renderBillTabs();
+    renderBill();
+  };
+  container.appendChild(btn);
+});
+
 
   const addBtn = document.createElement('button');
   addBtn.className = 'bill-tab add-bill';
@@ -198,6 +200,7 @@ function renderBill() {
 }
 
 /* ---------- complete order (save only the active bill to sales.json) ---------- */
+/* ---------- complete order (save + remove bill tab + create new) ---------- */
 async function completeOrder() {
   const theBill = bills[activeBillId] || {};
   const items = Object.values(theBill).map(e => ({ name: e.item.name, qty: e.qty, price: e.item.price }));
@@ -205,6 +208,7 @@ async function completeOrder() {
     alert('No items in the current bill.');
     return;
   }
+
   const total = items.reduce((s, i) => s + i.qty * i.price, 0);
   const sale = {
     id: Date.now(),
@@ -214,12 +218,30 @@ async function completeOrder() {
     timestamp: new Date().toISOString()
   };
 
+  // Save this bill’s sale record
   await window.api.appendSale(sale);
-  // clear only the active bill
-  bills[activeBillId] = {};
+
+  // 🔹 Remove this bill completely (not just clear)
+  delete bills[activeBillId];
+
+  // 🔹 Find the next available bill
+  const remaining = Object.keys(bills).sort();
+
+  if (remaining.length > 0) {
+    // Switch to the first remaining bill
+    activeBillId = remaining[0];
+  } else {
+    // No bills left → create a new one
+    createNewBill();
+  }
+
+  // Re-render tabs + current bill
+  renderBillTabs();
   renderBill();
+
   alert('Order saved.');
 }
+
 
 /* ---------- end of day (archive today's sales) ---------- */
 async function endDay() {
