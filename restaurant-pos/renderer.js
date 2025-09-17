@@ -323,12 +323,30 @@ function renderAdminList() {
 /* ---------- search input handler ---------- */
 $('search').addEventListener('input', () => renderMenu());
 
-/* ---------- admin show/hide ---------- */
-$('open-admin').addEventListener('click', () => {
+
+/* ---------- admin show/hide with password ---------- */
+$('open-admin').addEventListener('click', async () => {
   const panel = $('admin-panel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  renderAdminList();
+
+  // If panel is already visible → just hide it without asking
+  if (panel.style.display === 'block') {
+    panel.style.display = 'none';
+    return;
+  }
+
+  // Otherwise → ask for password
+  const correctPassword = "1234"; // set your password here
+  const input = await showPasswordPrompt("Admin Access");
+
+  if (input === correctPassword) {
+    panel.style.display = 'block';
+    renderAdminList();
+  } else if (input !== null) {
+    showToast("Incorrect password!");
+  }
 });
+
+
 
 /* ---------- other buttons ---------- */
 $('add-item').addEventListener('click', addMenuItem);
@@ -342,5 +360,39 @@ $('clear-bill').addEventListener('click', async () => {
 $('end-day').addEventListener('click', async () => {
   if (await showConfirm('Archive today sales and clear them?')) endDay();
 });
+
+
+// ---------- Password Modal ----------
+function showPasswordPrompt(msg) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal">
+        <div class="modal-msg">${msg}</div>
+        <input id="admin-pass-input" type="password" placeholder="Enter password" style="margin:8px 0; width:100%; padding:6px" />
+        <div class="modal-actions">
+          <button id="pass-ok">OK</button>
+          <button id="pass-cancel">Cancel</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector('#admin-pass-input');
+    input.focus();
+
+    overlay.querySelector('#pass-ok').onclick = () => {
+      const value = input.value;
+      overlay.remove();
+      resolve(value);
+    };
+    overlay.querySelector('#pass-cancel').onclick = () => {
+      overlay.remove();
+      resolve(null);
+    };
+  });
+}
+
 
 init();
