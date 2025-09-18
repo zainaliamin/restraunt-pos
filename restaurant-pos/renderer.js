@@ -268,13 +268,8 @@ async function completeOrder() {
   showToast('Order saved.');
 }
 
-/* ---------- end of day ---------- */
-async function endDay() {
-  const date = new Date();
-  const dateString = date.toISOString().slice(0,10);
-  const r = await window.api.archiveSales(dateString);
-  showToast(`Sales archived to: ${r.archived}`);
-}
+
+let editingItemId = null; // store which item is being edited
 
 /* ---------- Admin: add new menu item ---------- */
 async function addMenuItem() {
@@ -283,31 +278,60 @@ async function addMenuItem() {
   const category = $('new-category').value.trim() || 'Uncategorized';
   if (!name || !price) { showToast('Enter name and price'); return; }
 
-  const newId = (menuItems.length ? Math.max(...menuItems.map(i=>i.id)) : 0) + 1;
-  const newItem = { id: newId, name, price, category };
-  menuItems.push(newItem);
+  if (editingItemId !== null) {
+    // Update existing item
+    const item = menuItems.find(i => i.id === editingItemId);
+    item.name = name;
+    item.price = price;
+    item.category = category;
+    editingItemId = null;
+    $('add-item').textContent = "Add Item";
+  } else {
+    // Add new item
+    const newId = (menuItems.length ? Math.max(...menuItems.map(i => i.id)) : 0) + 1;
+    const newItem = { id: newId, name, price, category };
+    menuItems.push(newItem);
+  }
+
   await window.api.saveMenu(menuItems);
 
+  // reset form
   $('new-name').value = '';
   $('new-price').value = '';
   $('new-category').value = '';
+
   renderCategories();
   renderMenu();
   renderAdminList();
 }
 
-/* ---------- Admin: list + delete ---------- */
+
+
+/* ---------- Admin: list + delete + edit + search newerer ---------- */
 function renderAdminList() {
   const cont = $('admin-items');
   cont.innerHTML = '';
-  menuItems.forEach(it => {
+
+  const query = $('admin-search').value.trim().toLowerCase();
+
+  // filter items based on search
+  const filteredItems = menuItems.filter(it =>
+    it.name.toLowerCase().includes(query) || it.category.toLowerCase().includes(query)
+  );
+
+  filteredItems.forEach(it => {
     const d = document.createElement('div');
     d.style = 'display:flex; gap:8px; align-items:center; padding:4px 0;';
-    d.innerHTML = `<div style="flex:1">${it.name} (${it.category}) - PKR ${it.price}</div>
-                   <button data-id="${it.id}" class="small">Delete</button>`;
+    d.innerHTML = `
+      <div style="flex:1">${it.name} (${it.category}) - PKR ${it.price}</div>
+      <button data-id="${it.id}" class="small edit-btn">Edit</button>
+      <button data-id="${it.id}" class="small delete-btn">Delete</button>
+    `;
     cont.appendChild(d);
   });
-  cont.querySelectorAll('button[data-id]').forEach(bt => {
+
+  // Delete buttons
+  cont.querySelectorAll('button.delete-btn').forEach(bt => {
     bt.onclick = async () => {
       const id = parseInt(bt.dataset.id, 10);
       if (!(await showConfirm('Delete this item?'))) return;
@@ -318,7 +342,28 @@ function renderAdminList() {
       renderAdminList();
     };
   });
+
+  // Edit buttons
+cont.querySelectorAll('button.edit-btn').forEach(bt => {
+  bt.onclick = () => {
+    const id = parseInt(bt.dataset.id, 10);
+    const item = menuItems.find(m => m.id === id);
+    if (!item) return;
+    $('new-name').value = item.name;
+    $('new-price').value = item.price;
+    $('new-category').value = item.category;
+
+    editingItemId = item.id; // ✅ mark this item for update
+    $('add-item').textContent = "Update Item";
+  };
+});
+
 }
+
+// ---------- Admin search input ----------
+$('admin-search').addEventListener('input', () => renderAdminList());
+
+
 
 /* ---------- search input handler ---------- */
 $('search').addEventListener('input', () => renderMenu());
@@ -351,15 +396,30 @@ $('open-admin').addEventListener('click', async () => {
 /* ---------- other buttons ---------- */
 $('add-item').addEventListener('click', addMenuItem);
 $('complete-order').addEventListener('click', completeOrder);
+$('print-bill').addEventListener('click', printBill);
+
 $('clear-bill').addEventListener('click', async () => {
   if (await showConfirm('Clear current bill?')) {
     bills[activeBillId] = {};
     renderBill();
   }
 });
-$('end-day').addEventListener('click', async () => {
-  if (await showConfirm('Archive today sales and clear them?')) endDay();
+
+
+$('view-reports').addEventListener('click', async () => {
+  const correctPassword = "1234"; // optional: ask admin password before viewing
+  const input = await showPasswordPrompt("Enter Admin Password to view reports");
+
+  if (input === correctPassword) {
+    // fetch available report files from main process
+    const files = await window.api.listReports(); // or readReports()
+    showReportsPopup(files); // pass the files to popup
+  } else if (input !== null) {
+    showToast("Incorrect password!");
+  }
 });
+
+
 
 
 // ---------- Password Modal ----------
@@ -393,6 +453,173 @@ function showPasswordPrompt(msg) {
     };
   });
 }
+
+
+/* ---------- print bill ---------- */
+function printBill() {
+  const theBill = bills[activeBillId] || {};
+  const items = Object.values(theBill).map(e => ({
+    name: e.item.name,
+    qty: e.qty,
+    price: e.item.price
+  }));
+  const total = items.reduce((s, i) => s + i.qty * i.price, 0);
+  const bill = { id: activeBillId, items, total };
+
+  window.api.printBill(bill);
+}
+
+
+
+
+
+
+
+////////////////////////////////////////////////////
+
+// ---------- REPORTS VIEWER ----------
+
+
+function displayReportDataInModal(container, filename, data) {
+  container.innerHTML = `<h4>${filename}</h4>`;
+  if (!data.length) { container.innerHTML += '<div>No sales in this report.</div>'; return; }
+
+  const table = document.createElement('table');
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  table.innerHTML = `
+    <tr>
+      <th style="border:1px solid #ccc;padding:4px">Bill ID</th>
+      <th style="border:1px solid #ccc;padding:4px">Item</th>
+      <th style="border:1px solid #ccc;padding:4px">Qty</th>
+      <th style="border:1px solid #ccc;padding:4px">Price</th>
+      <th style="border:1px solid #ccc;padding:4px">Total</th>
+    </tr>
+  `;
+
+  data.forEach(sale => {
+    sale.items.forEach(i => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="border:1px solid #ccc;padding:4px">${sale.billId}</td>
+        <td style="border:1px solid #ccc;padding:4px">${i.name}</td>
+        <td style="border:1px solid #ccc;padding:4px">${i.qty}</td>
+        <td style="border:1px solid #ccc;padding:4px">${i.price}</td>
+        <td style="border:1px solid #ccc;padding:4px">${i.qty * i.price}</td>
+      `;
+      table.appendChild(tr);
+    });
+  });
+
+  container.appendChild(table);
+}
+
+
+function displayReportDataInModal(container, filename, data) {
+  container.innerHTML = `<h4>${filename}</h4>`;
+  if (!data.length) { container.innerHTML += '<div>No sales in this report.</div>'; return; }
+
+  const table = document.createElement('table');
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  table.innerHTML = `
+    <tr>
+      <th style="border:1px solid #ccc;padding:4px">Bill ID</th>
+      <th style="border:1px solid #ccc;padding:4px">Item</th>
+      <th style="border:1px solid #ccc;padding:4px">Qty</th>
+      <th style="border:1px solid #ccc;padding:4px">Price</th>
+      <th style="border:1px solid #ccc;padding:4px">Total</th>
+    </tr>
+  `;
+
+  data.forEach(sale => {
+    sale.items.forEach(i => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="border:1px solid #ccc;padding:4px">${sale.billId}</td>
+        <td style="border:1px solid #ccc;padding:4px">${i.name}</td>
+        <td style="border:1px solid #ccc;padding:4px">${i.qty}</td>
+        <td style="border:1px solid #ccc;padding:4px">${i.price}</td>
+        <td style="border:1px solid #ccc;padding:4px">${i.qty * i.price}</td>
+      `;
+      table.appendChild(tr);
+    });
+  });
+
+  container.appendChild(table);
+}
+
+
+
+async function showReportsPopup() {
+  const reports = await window.api.listReports();
+  if (!reports.length) { showToast("No reports available."); return; }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="width:400px; max-height:70%; overflow:auto;">
+      <div class="modal-msg">Reports</div>
+      <div id="report-list"></div>
+      <div class="modal-actions">
+        <button id="close-reports">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const listContainer = overlay.querySelector('#report-list');
+  reports.forEach(file => {
+    const btn = document.createElement('button');
+    btn.textContent = file;
+    btn.style.display = "block";
+    btn.style.margin = "4px 0";
+    btn.onclick = async () => {
+      const data = await window.api.readReport(file);
+      displayReportDataInModal(listContainer, file, data);
+    };
+    listContainer.appendChild(btn);
+  });
+
+  overlay.querySelector('#close-reports').onclick = () => overlay.remove();
+}
+function displayReportDataInModal(container, filename, sales) {
+  if (!sales.length) {
+    container.innerHTML = `<p>No sales found in ${filename}</p>`;
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="border:1px solid #ccc; padding:4px">Bill ID</th>
+        <th style="border:1px solid #ccc; padding:4px">Timestamp</th>
+        <th style="border:1px solid #ccc; padding:4px">Items</th>
+        <th style="border:1px solid #ccc; padding:4px">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${sales.map(sale => `
+        <tr>
+          <td style="border:1px solid #ccc; padding:4px">${sale.billId}</td>
+          <td style="border:1px solid #ccc; padding:4px">${new Date(sale.timestamp).toLocaleString()}</td>
+          <td style="border:1px solid #ccc; padding:4px">
+            ${sale.items.map(i => `${i.qty} x ${i.name} (PKR ${i.price})`).join('<br>')}
+          </td>
+          <td style="border:1px solid #ccc; padding:4px">PKR ${sale.total}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+
+  container.innerHTML = `<h4>${filename}</h4>`; // show file name
+  container.appendChild(table);
+}
+
+
 
 
 init();

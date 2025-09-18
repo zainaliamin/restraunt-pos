@@ -18,7 +18,7 @@
     #right { flex: 0.58; padding:12px; box-sizing:border-box; display:flex; flex-direction:column; }
     #category-bar { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
     .cat-btn { padding:8px 12px; border-radius:6px; background:#eee; cursor:pointer; }
-    .cat-btn.active { background:#d9534f; color:#fff; }
+    .cat-btn.active { background:#007bff; color:#fff; }
     #search { margin-bottom:8px; padding:8px; width:100%; box-sizing:border-box; }
     #menu-grid { display:flex; gap:8px; flex-wrap:wrap; align-content:flex-start; overflow:auto; padding:6px; }
 
@@ -32,7 +32,7 @@
       text-align:center;
       padding:6px;
       border-radius:6px;
-      background:#f44;
+      background:#007bff;
       color:#fff;
       cursor:pointer;
       font-size:13px;
@@ -72,9 +72,13 @@
 
       <div class="action-row">
         <button id="complete-order" class="small">Complete Order (Save)</button>
+        <button id="print-bill">🖨️ Print Bill</button>
+
         <button id="clear-bill" class="small">Clear</button>
-        <button id="end-day" class="small">End Day (Archive)</button>
         <button id="open-admin" class="small">Admin</button>
+        <button id="view-reports">View Reports</button>
+<div id="reports-container" style="display:none; max-height:300px; overflow:auto;"></div>
+
       </div>
 
       <div id="admin-panel" style="display:none;">
@@ -86,6 +90,8 @@
           <button id="add-item" class="small">Add Item</button>
         </div>
         <h4>Current Items</h4>
+        <input type="text" id="admin-search" placeholder="Search items..." style="width:100%; padding:6px; margin-bottom:8px;">
+
         <div id="admin-items" style="max-height:150px; overflow:auto;"></div>
       </div>
     </div>
