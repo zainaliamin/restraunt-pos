@@ -82,7 +82,7 @@ ipcMain.on("print-bill", async (event, bill) => {
     console.log("Printing bill:", bill);
 
     // change this dynamically if you want later
-    const printerType = "USB"; // or "WIFI"
+    const printerType = "WIFI"; // or "WIFI"
 
     if (printerType === "USB") {
       // -------- USB / Windows Printer ----------
@@ -116,18 +116,20 @@ ipcMain.on("print-bill", async (event, bill) => {
       let content = "";
       content += "\x1B\x40"; // Initialize printer
       content += "\x1B\x61\x01"; // Center align
-      content += "My Restaurant\n";
-      content += "------------------------------\n";
+      content += "Pizza Junction\n";
       content += "\x1B\x61\x00"; // Left align
+      content += "------------------------------\n";
 
       bill.items.forEach(i => {
         content += `${i.qty} x ${i.name} ..... ${i.qty * i.price}\n`;
       });
 
-      content += "------------------------------\n";
-      content += `Total: ${bill.total}\n`;
-      content += "\n\n\n";
-      content += "\x1D\x56\x41"; // Cut paper
+       content += "------------------------------\n";
+  content += `Total: ${bill.total}\n`;
+  content += "\n\n\n";  
+   
+    content += "\n\n\n";       // feed
+  content += "\x1D\x56\x00"; // Full cut
 
       const buffer = Buffer.from(content, "utf8");
       await sendToPrinter("192.168.11.110", 9100, buffer); // replace IP + port
