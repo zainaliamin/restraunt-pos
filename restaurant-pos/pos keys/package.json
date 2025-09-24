@@ -1,0 +1,26 @@
+{
+  "name": "pos-key-generator",
+  "version": "1.0.0",
+  "description": "CLI tool to generate POS activation keys",
+  "main": "genkey.js",
+  "scripts": {
+    "start": "node genkey.js",
+    "build": "pkg . --targets node22-win-x64 --output pos-key-generator.exe",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "POS",
+    "activation",
+    "license",
+    "keygen"
+  ],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "readline-sync": "^1.4.10"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}
