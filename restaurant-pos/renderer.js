@@ -1,3 +1,5 @@
+
+
 // renderer.js - runs in the UI
 let menuItems = [];
 let selectedCategory = null;
@@ -623,3 +625,69 @@ function displayReportDataInModal(container, filename, sales) {
 
 
 init();
+
+
+
+////////////////////////////////////////////////////
+// ACTIVATION SYSTEM - CLEAN VERSION
+////////////////////////////////////////////////////
+
+let currentMac = null;
+
+// Fetch MAC once on app start
+window.api.getMac().then(mac => {
+    currentMac = mac;
+    document.getElementById("mac").textContent = "MAC: " + mac;
+});
+
+// Show activation modal when triggered
+window.api.onShowActivation(() => {
+    const modal = document.getElementById("activationModal");
+    modal.style.display = "flex";
+
+    // Display stored MAC
+    if (currentMac) {
+        document.getElementById("mac").innerText = "MAC: " + currentMac;
+    } else {
+        window.api.getMac().then(mac => {
+            currentMac = mac;
+            document.getElementById("mac").innerText = "MAC: " + mac;
+        });
+    }
+});
+
+// Handle activation button click
+document.getElementById("activateBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("activateBtn");
+    btn.disabled = true;
+
+    const key = document.getElementById("activationKey").value.trim().toUpperCase();
+
+    let macRaw = await window.api.getMac();  // may be null
+    if (!macRaw || typeof macRaw !== 'string') {
+        showToast("MAC address not available", 3000);
+        btn.disabled = false;
+        return;
+    }
+
+    const mac = macRaw.toLowerCase(); // normalize
+    const result = await window.api.activate( mac, key );
+
+    if (result.success) {
+        showToast("✅ Activated successfully!", 3000);
+        document.getElementById("activationModal").style.display = "none";
+    } else {
+        showToast("❌ Invalid activation key!", 3000);
+    }
+
+    btn.disabled = false;
+});
+
+
+
+// Optional: Close modal when clicking outside
+document.getElementById("activationModal").addEventListener("click", (e) => {
+    if (e.target.id === "activationModal") {
+        e.target.style.display = "none";
+    }
+});

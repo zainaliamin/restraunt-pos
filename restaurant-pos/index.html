@@ -46,6 +46,22 @@
   </style>
 </head>
 <body>
+  <div id="activationModal" style="display:none; position:fixed; 
+     top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); 
+     display:flex; align-items:center; justify-content:center; z-index:9999;">
+
+  <div style="background:white; padding:20px; border-radius:10px; width:300px; text-align:center;">
+    <h3>Activate POS</h3>
+    <p id="mac">Loading MAC...</p>
+    <input id="activationKey" type="text" placeholder="Enter key" style="width:100%; padding:8px;" />
+    <button id="activateBtn">Activate</button>
+  </div>
+
+</div>
+
+
+
+
   <div class="app">
     <div id="left">
       <h2>Order Summary</h2>

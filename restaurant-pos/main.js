@@ -1,7 +1,96 @@
+//Liscense check before app ready
+// main.js
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const path = require("path");
+const fs = require("fs");
+
+const crypto = require("crypto");
+
+function generateKey(mac) {
+  return crypto.createHash("sha256")
+    .update(mac + "my-secret-salt")
+    .digest("hex")
+    .substring(0,16)
+    .toUpperCase();
+}
+
+
+let mainWindow;
+const licenseFile = path.join(app.getPath("userData"), "license.json");
+
+// check activation status
+function isActivated() {
+  if (!fs.existsSync(licenseFile)) return false;
+  try {
+    const data = JSON.parse(fs.readFileSync(licenseFile, "utf8"));
+
+    // Basic checks
+    if (!data.activated || !data.key || !data.mac) return false;
+
+    // Verify that key matches MAC
+    const expectedKey = generateKey(data.mac);
+    return data.key === expectedKey;
+
+  } catch (err) {
+    console.error("License read error:", err);
+    return false;
+  }
+}
+
+
+
+
+const os = require("os");
+
+ipcMain.handle("get-mac", async () => {
+    try {
+        const nets = os.networkInterfaces();
+        for (const name of Object.keys(nets)) {
+            if (/vbox|virtual|loopback|docker/i.test(name)) continue;
+            for (const net of nets[name]) {
+                if (net.family === "IPv4" && !net.internal && net.mac && net.mac !== "00:00:00:00:00:00") {
+                    return String(net.mac); // ensure string
+                }
+            }
+        }
+        throw new Error("No valid MAC found");
+    } catch (err) {
+        console.error("MAC fetch error:", err);
+        return null;
+    }
+});
+
+
+ipcMain.handle("activate", async (event, { mac, key }) => {
+    if (!mac || typeof mac !== 'string') {
+        console.error("Invalid MAC received:", mac);
+        return { success: false };
+    }
+
+    mac = mac.toLowerCase(); // safe now
+    const expected = generateKey(mac);
+
+
+    console.log("MAC from system:", mac);
+console.log("Expected key:", generateKey(mac));
+    if (key === expected) {
+        const licenseData = { activated: true, mac, key };
+        fs.writeFileSync(licenseFile, JSON.stringify(licenseData, null, 2));
+        return { success: true };
+    }
+
+    return { success: false };
+});
+
+
+
+
+
+
+//Liscense check before app ready end here
+
+
 const { PosPrinter } = require("electron-pos-printer");
-const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
-const fs = require('fs');
 
 const getPaths = () => {
   const dataPath = app.getPath('userData'); // where our menu.json and sales.ndjson will live
@@ -29,19 +118,25 @@ function ensureDataFiles() {
 }
 
 function createWindow () {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true, // safer
+      contextIsolation: true,
       nodeIntegration: false
     }
   });
 
-  win.loadFile('index.html');
-  // win.webContents.openDevTools(); // uncomment for debugging
+  mainWindow.loadFile('index.html');
+
+  mainWindow.webContents.once("did-finish-load", () => {
+    if (!isActivated()) {
+      mainWindow.webContents.send("show-activation");
+    }
+  });
 }
+
 
 app.whenReady().then(() => {
   ensureDataFiles();
