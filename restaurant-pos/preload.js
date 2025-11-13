@@ -12,10 +12,15 @@ contextBridge.exposeInMainWorld("api", {
   // Activation
   getMac: () => ipcRenderer.invoke("get-mac"),
   activate: (mac, key) => ipcRenderer.invoke("activate", { mac, key }),
+  checkLicense: () => ipcRenderer.invoke("check-license"),
   onShowActivation: (callback) => ipcRenderer.on("show-activation", callback),
 
   // Printing
   printBill: (bill) => ipcRenderer.send("print-bill", bill),
+
+  // Settings
+  loadSettings: () => ipcRenderer.invoke("load-settings"),
+  saveSettings: (settings) => ipcRenderer.invoke("save-settings", settings),
 
   // Event listeners
   onShowActivation: (callback) => ipcRenderer.on("show-activation", callback),

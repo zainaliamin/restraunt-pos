@@ -93,6 +93,7 @@
         <button id="clear-bill" class="small">Clear</button>
         <button id="open-admin" class="small">Admin</button>
         <button id="view-reports">View Reports</button>
+        <button id="open-settings" class="small">Settings</button>
 <div id="reports-container" style="display:none; max-height:300px; overflow:auto;"></div>
 
       </div>
@@ -109,6 +110,57 @@
         <input type="text" id="admin-search" placeholder="Search items..." style="width:100%; padding:6px; margin-bottom:8px;">
 
         <div id="admin-items" style="max-height:150px; overflow:auto;"></div>
+      </div>
+
+      <div id="settings-panel" style="display:none;">
+        <h3>Settings</h3>
+        <div>
+          <h4>Printer Settings</h4>
+          <div style="margin-bottom: 10px;">
+            <label>Printer Type:</label>
+            <select id="printer-type" style="margin-left: 10px;">
+              <option value="WIFI">WiFi Printer</option>
+              <option value="USB">USB Printer</option>
+            </select>
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label>Printer IP:</label>
+            <input id="printer-ip" type="text" placeholder="192.168.1.100" style="margin-left: 10px; width: 150px;" />
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label>Printer Port:</label>
+            <input id="printer-port" type="number" placeholder="9100" style="margin-left: 10px; width: 80px;" />
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label>Printer Name (USB):</label>
+            <input id="printer-name" type="text" placeholder="POS-80C" style="margin-left: 10px; width: 150px;" />
+          </div>
+        </div>
+        
+        <div>
+          <h4>Security Settings</h4>
+          <div style="margin-bottom: 10px;">
+            <label>Admin Password:</label>
+            <input id="admin-password" type="password" placeholder="1234" style="margin-left: 10px; width: 150px;" />
+          </div>
+        </div>
+
+        <div>
+          <h4>Restaurant Settings</h4>
+          <div style="margin-bottom: 10px;">
+            <label>Restaurant Name:</label>
+            <input id="restaurant-name" type="text" placeholder="Pizza Junction" style="margin-left: 10px; width: 200px;" />
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label>Currency:</label>
+            <input id="currency" type="text" placeholder="PKR" style="margin-left: 10px; width: 80px;" />
+          </div>
+        </div>
+
+        <div style="margin-top: 15px;">
+          <button id="save-settings" class="small">Save Settings</button>
+          <button id="reset-settings" class="small">Reset to Default</button>
+        </div>
       </div>
     </div>
 

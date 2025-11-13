@@ -3,6 +3,7 @@
 // renderer.js - runs in the UI
 let menuItems = [];
 let selectedCategory = null;
+let settings = {};
 
 // MULTI-BILL state
 let bills = {};               // { '001': { itemId: { item, qty } }, ... }
@@ -54,6 +55,36 @@ function showConfirm(msg) {
 async function init() {
   menuItems = await window.api.loadMenu();
   if (!menuItems || !menuItems.length) menuItems = [];
+  
+  // Load settings
+  settings = await window.api.loadSettings();
+  if (!settings) {
+    settings = {
+      printerType: "WIFI",
+      printerIP: "192.168.11.110",
+      printerPort: 9100,
+      printerName: "POS-80C",
+      adminPassword: "1234",
+      restaurantName: "Pizza Junction",
+      currency: "PKR"
+    };
+  }
+  
+  // Check if license is valid and hide activation modal if it is
+  try {
+    const licenseValid = await window.api.checkLicense();
+    console.log("License check result:", licenseValid);
+    if (licenseValid) {
+      const modal = document.getElementById("activationModal");
+      if (modal) {
+        modal.style.display = "none";
+        console.log("Activation modal hidden - license is valid");
+      }
+    }
+  } catch (error) {
+    console.log("Could not check license status:", error);
+  }
+  
   renderCategories();
 
   // default to first category
@@ -122,7 +153,7 @@ function renderMenu() {
   filtered.forEach(it => {
     const btn = document.createElement('div');
     btn.className = 'menu-btn';
-    btn.textContent = `${it.name}\nPKR ${it.price}`;
+    btn.textContent = `${it.name}\n${settings.currency} ${it.price}`;
     btn.title = it.name;
     btn.onclick = () => addToBill(it);
     grid.appendChild(btn);
@@ -211,7 +242,7 @@ function renderBill() {
 
       const price = entry.qty * entry.item.price;
       const tdPrice = document.createElement('td');
-      tdPrice.textContent = `PKR ${price}`;
+      tdPrice.textContent = `${settings.currency} ${price}`;
       tr.appendChild(tdPrice);
 
       tbody.appendChild(tr);
@@ -219,7 +250,7 @@ function renderBill() {
     }
   }
 
-  $('bill-total').textContent = `Total: PKR ${total}`;
+  $('bill-total').textContent = `Total: ${settings.currency} ${total}`;
 
   document.querySelectorAll('.qty-btn').forEach(b => {
     b.onclick = () => {
@@ -325,7 +356,7 @@ function renderAdminList() {
     const d = document.createElement('div');
     d.style = 'display:flex; gap:8px; align-items:center; padding:4px 0;';
     d.innerHTML = `
-      <div style="flex:1">${it.name} (${it.category}) - PKR ${it.price}</div>
+      <div style="flex:1">${it.name} (${it.category}) - ${settings.currency} ${it.price}</div>
       <button data-id="${it.id}" class="small edit-btn">Edit</button>
       <button data-id="${it.id}" class="small delete-btn">Delete</button>
     `;
@@ -382,10 +413,9 @@ $('open-admin').addEventListener('click', async () => {
   }
 
   // Otherwise → ask for password
-  const correctPassword = "1234"; // set your password here
   const input = await showPasswordPrompt("Admin Access");
 
-  if (input === correctPassword) {
+  if (input === settings.adminPassword) {
     panel.style.display = 'block';
     renderAdminList();
   } else if (input !== null) {
@@ -409,20 +439,96 @@ $('clear-bill').addEventListener('click', async () => {
 
 
 $('view-reports').addEventListener('click', async () => {
-  const correctPassword = "1234"; // optional: ask admin password before viewing
   const input = await showPasswordPrompt("Enter Admin Password to view reports");
 
-  if (input === correctPassword) {
+  if (input === settings.adminPassword) {
     // fetch available report files from main process
-    const files = await window.api.listReports(); // or readReports()
-    showReportsPopup(files); // pass the files to popup
+    showReportsPopup(); // call without parameters
   } else if (input !== null) {
     showToast("Incorrect password!");
   }
 });
 
+// ---------- Settings Panel ----------
+$('open-settings').addEventListener('click', async () => {
+  const panel = $('settings-panel');
+  const adminPanel = $('admin-panel');
 
+  // If panel is already visible → just hide it
+  if (panel.style.display === 'block') {
+    panel.style.display = 'none';
+    return;
+  }
 
+  // Hide admin panel if open
+  if (adminPanel.style.display === 'block') {
+    adminPanel.style.display = 'none';
+  }
+
+  // Ask for password
+  const input = await showPasswordPrompt("Admin Access");
+
+  if (input === settings.adminPassword) {
+    panel.style.display = 'block';
+    loadSettingsToForm();
+  } else if (input !== null) {
+    showToast("Incorrect password!");
+  }
+});
+
+function loadSettingsToForm() {
+  $('printer-type').value = settings.printerType || 'WIFI';
+  $('printer-ip').value = settings.printerIP || '192.168.11.110';
+  $('printer-port').value = settings.printerPort || 9100;
+  $('printer-name').value = settings.printerName || 'POS-80C';
+  $('admin-password').value = settings.adminPassword || '1234';
+  $('restaurant-name').value = settings.restaurantName || 'Pizza Junction';
+  $('currency').value = settings.currency || 'PKR';
+}
+
+$('save-settings').addEventListener('click', async () => {
+  const newSettings = {
+    printerType: $('printer-type').value,
+    printerIP: $('printer-ip').value,
+    printerPort: parseInt($('printer-port').value) || 9100,
+    printerName: $('printer-name').value,
+    adminPassword: $('admin-password').value,
+    restaurantName: $('restaurant-name').value,
+    currency: $('currency').value
+  };
+
+  const success = await window.api.saveSettings(newSettings);
+  if (success) {
+    settings = newSettings;
+    showToast('Settings saved successfully!');
+    $('settings-panel').style.display = 'none';
+  } else {
+    showToast('Error saving settings!');
+  }
+});
+
+$('reset-settings').addEventListener('click', async () => {
+  if (await showConfirm('Reset all settings to default values?')) {
+    const defaultSettings = {
+      printerType: "WIFI",
+      printerIP: "192.168.11.110",
+      printerPort: 9100,
+      printerName: "POS-80C",
+      adminPassword: "1234",
+      restaurantName: "Pizza Junction",
+      currency: "PKR"
+    };
+
+    const success = await window.api.saveSettings(defaultSettings);
+    if (success) {
+      settings = defaultSettings;
+      loadSettingsToForm();
+      showToast('Settings reset to default!');
+    } else {
+      showToast('Error resetting settings!');
+    }
+  }
+});
 
 // ---------- Password Modal ----------
 function showPasswordPrompt(msg) {
@@ -482,109 +588,6 @@ function printBill() {
 // ---------- REPORTS VIEWER ----------
 
 
-function displayReportDataInModal(container, filename, data) {
-  container.innerHTML = `<h4>${filename}</h4>`;
-  if (!data.length) { container.innerHTML += '<div>No sales in this report.</div>'; return; }
-
-  const table = document.createElement('table');
-  table.style.width = '100%';
-  table.style.borderCollapse = 'collapse';
-  table.innerHTML = `
-    <tr>
-      <th style="border:1px solid #ccc;padding:4px">Bill ID</th>
-      <th style="border:1px solid #ccc;padding:4px">Item</th>
-      <th style="border:1px solid #ccc;padding:4px">Qty</th>
-      <th style="border:1px solid #ccc;padding:4px">Price</th>
-      <th style="border:1px solid #ccc;padding:4px">Total</th>
-    </tr>
-  `;
-
-  data.forEach(sale => {
-    sale.items.forEach(i => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="border:1px solid #ccc;padding:4px">${sale.billId}</td>
-        <td style="border:1px solid #ccc;padding:4px">${i.name}</td>
-        <td style="border:1px solid #ccc;padding:4px">${i.qty}</td>
-        <td style="border:1px solid #ccc;padding:4px">${i.price}</td>
-        <td style="border:1px solid #ccc;padding:4px">${i.qty * i.price}</td>
-      `;
-      table.appendChild(tr);
-    });
-  });
-
-  container.appendChild(table);
-}
-
-
-function displayReportDataInModal(container, filename, data) {
-  container.innerHTML = `<h4>${filename}</h4>`;
-  if (!data.length) { container.innerHTML += '<div>No sales in this report.</div>'; return; }
-
-  const table = document.createElement('table');
-  table.style.width = '100%';
-  table.style.borderCollapse = 'collapse';
-  table.innerHTML = `
-    <tr>
-      <th style="border:1px solid #ccc;padding:4px">Bill ID</th>
-      <th style="border:1px solid #ccc;padding:4px">Item</th>
-      <th style="border:1px solid #ccc;padding:4px">Qty</th>
-      <th style="border:1px solid #ccc;padding:4px">Price</th>
-      <th style="border:1px solid #ccc;padding:4px">Total</th>
-    </tr>
-  `;
-
-  data.forEach(sale => {
-    sale.items.forEach(i => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="border:1px solid #ccc;padding:4px">${sale.billId}</td>
-        <td style="border:1px solid #ccc;padding:4px">${i.name}</td>
-        <td style="border:1px solid #ccc;padding:4px">${i.qty}</td>
-        <td style="border:1px solid #ccc;padding:4px">${i.price}</td>
-        <td style="border:1px solid #ccc;padding:4px">${i.qty * i.price}</td>
-      `;
-      table.appendChild(tr);
-    });
-  });
-
-  container.appendChild(table);
-}
-
-
-
-async function showReportsPopup() {
-  const reports = await window.api.listReports();
-  if (!reports.length) { showToast("No reports available."); return; }
-
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="modal" style="width:400px; max-height:70%; overflow:auto;">
-      <div class="modal-msg">Reports</div>
-      <div id="report-list"></div>
-      <div class="modal-actions">
-        <button id="close-reports">Close</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-
-  const listContainer = overlay.querySelector('#report-list');
-  reports.forEach(file => {
-    const btn = document.createElement('button');
-    btn.textContent = file;
-    btn.style.display = "block";
-    btn.style.margin = "4px 0";
-    btn.onclick = async () => {
-      const data = await window.api.readReport(file);
-      displayReportDataInModal(listContainer, file, data);
-    };
-    listContainer.appendChild(btn);
-  });
-
-  overlay.querySelector('#close-reports').onclick = () => overlay.remove();
-}
 function displayReportDataInModal(container, filename, sales) {
   if (!sales.length) {
     container.innerHTML = `<p>No sales found in ${filename}</p>`;
@@ -609,9 +612,9 @@ function displayReportDataInModal(container, filename, sales) {
           <td style="border:1px solid #ccc; padding:4px">${sale.billId}</td>
           <td style="border:1px solid #ccc; padding:4px">${new Date(sale.timestamp).toLocaleString()}</td>
           <td style="border:1px solid #ccc; padding:4px">
-            ${sale.items.map(i => `${i.qty} x ${i.name} (PKR ${i.price})`).join('<br>')}
+            ${sale.items.map(i => `${i.qty} x ${i.name} (${settings.currency} ${i.price})`).join('<br>')}
           </td>
-          <td style="border:1px solid #ccc; padding:4px">PKR ${sale.total}</td>
+          <td style="border:1px solid #ccc; padding:4px">${settings.currency} ${sale.total}</td>
         </tr>
       `).join('')}
     </tbody>
@@ -619,6 +622,54 @@ function displayReportDataInModal(container, filename, sales) {
 
   container.innerHTML = `<h4>${filename}</h4>`; // show file name
   container.appendChild(table);
+}
+
+
+
+async function showReportsPopup() {
+  try {
+    const reports = await window.api.listReports();
+    if (!reports.length) { 
+      showToast("No reports available."); 
+      return; 
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal" style="width:400px; max-height:70%; overflow:auto;">
+        <div class="modal-msg">Reports</div>
+        <div id="report-list"></div>
+        <div class="modal-actions">
+          <button id="close-reports">Close</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const listContainer = overlay.querySelector('#report-list');
+    reports.forEach(file => {
+      const btn = document.createElement('button');
+      btn.textContent = file;
+      btn.style.display = "block";
+      btn.style.margin = "4px 0";
+      btn.onclick = async () => {
+        try {
+          const data = await window.api.readReport(file);
+          displayReportDataInModal(listContainer, file, data);
+        } catch (error) {
+          console.error('Error reading report:', error);
+          showToast('Error loading report');
+        }
+      };
+      listContainer.appendChild(btn);
+    });
+
+    overlay.querySelector('#close-reports').onclick = () => overlay.remove();
+  } catch (error) {
+    console.error('Error loading reports:', error);
+    showToast('Error loading reports');
+  }
 }
 
 
@@ -642,6 +693,7 @@ window.api.getMac().then(mac => {
 
 // Show activation modal when triggered
 window.api.onShowActivation(() => {
+    console.log("show-activation signal received");
     const modal = document.getElementById("activationModal");
     modal.style.display = "flex";
 
